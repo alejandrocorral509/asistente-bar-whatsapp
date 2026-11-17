@@ -1,0 +1,49 @@
+{
+    "aviso": "Bar inventado para una demo. Los datos no corresponden a ningún local real.",
+    "nombre": "Tabanco La Bota",
+    "tipo": "Tabanco: vinos de Jerez, tapas y cocina casera",
+    "direccion": "Calle Ejemplo, 12, Jerez de la Frontera (dirección inventada)",
+    "telefono": "600 000 000",
+    "horario": {
+        "lunes": "Cerrado",
+        "martes a jueves": "12:30 a 16:00 y 20:00 a 00:00",
+        "viernes y sábado": "12:30 a 16:30 y 20:00 a 01:00",
+        "domingo": "12:30 a 17:00"
+    },
+    "normas": {
+        "reservas": "El asistente toma reservas de 1 a 8 personas. Para más de 8, debe de llamar al teléfono asociado.",
+        "alergenos": "Informar de lo que indica la carta y pedir siempre que lo confirmen con el camarero.",
+        "quejas": "Pedir disculpas y avisar a una persona del bar. No intentar resolverlas.",
+        "otros_temas": "Decir amablemente que solo puede ayudar con cosas del bar."
+    },
+    "carta": [
+        {"nombre": "Fino", "categoria": "Vinos de Jerez", "precio": 2.00, "alergenos": ["sulfitos"]},
+        {"nombre": "Manzanilla", "categoria": "Vinos de Jerez", "precio": 2.00, "alergenos": ["sulfitos"]},
+        {"nombre": "Amontillado", "categoria": "Vinos de Jerez", "precio": 2.50, "alergenos": ["sulfitos"]},
+        {"nombre": "Oloroso", "categoria": "Vinos de Jerez", "precio": 2.50, "alergenos": ["sulfitos"]},
+        {"nombre": "Palo cortado", "categoria": "Vinos de Jerez", "precio": 3.50, "alergenos": ["sulfitos"]},
+        {"nombre": "Pedro Ximénez", "categoria": "Vinos de Jerez", "precio": 2.50, "alergenos": ["sulfitos"]},
+        {"nombre": "Cerveza de barril", "categoria": "Bebidas", "precio": 1.80, "alergenos": ["gluten"]},
+        {"nombre": "Refresco", "categoria": "Bebidas", "precio": 2.00, "alergenos": []},
+        {"nombre": "Agua", "categoria": "Bebidas", "precio": 1.50, "alergenos": []},
+
+        {"nombre": "Chicharrones", "categoria": "Tapas frías", "precio": 3.00, "alergenos": []},
+        {"nombre": "Papas aliñás", "categoria": "Tapas frías", "precio": 3.00, "alergenos": ["sulfitos"]},
+        {"nombre": "Ensaladilla", "categoria": "Tapas frías", "precio": 3.50, "alergenos": ["huevo", "pescado"]},
+        {"nombre": "Queso payoyo", "categoria": "Tapas frías", "precio": 4.00, "alergenos": ["leche"]},
+        {"nombre": "Lomo en manteca", "categoria": "Tapas frías", "precio": 3.50, "alergenos": []},
+        {"nombre": "Montadito de pringá", "categoria": "Tapas frías", "precio": 3.00, "alergenos": ["gluten"]},
+
+        {"nombre": "Tortilla de camarones", "categoria": "Tapas calientes", "precio": 3.50, "alergenos": ["crustáceos", "gluten"]},
+        {"nombre": "Croquetas de puchero", "categoria": "Tapas calientes", "precio": 3.50, "alergenos": ["gluten", "leche", "huevo"]},
+        {"nombre": "Espinacas con garbanzos", "categoria": "Tapas calientes", "precio": 3.50, "alergenos": ["gluten"]},
+        {"nombre": "Berza jerezana", "categoria": "Tapas calientes", "precio": 4.00, "alergenos": []},
+        {"nombre": "Carrillada al oloroso", "categoria": "Tapas calientes", "precio": 4.50, "alergenos": ["sulfitos", "apio"]},
+        {"nombre": "Riñones al jerez", "categoria": "Tapas calientes", "precio": 4.00, "alergenos": ["sulfitos"]},
+        {"nombre": "Menudo", "categoria": "Tapas calientes", "precio": 4.00, "alergenos": []},
+        {"nombre": "Huevos a la flamenca", "categoria": "Tapas calientes", "precio": 4.50, "alergenos": ["huevo"]},
+
+        {"nombre": "Tocino de cielo", "categoria": "Postres", "precio": 3.50, "alergenos": ["huevo"]},
+        {"nombre": "Queso con membrillo", "categoria": "Postres", "precio": 3.50, "alergenos": ["leche"]}
+    ]
+}
