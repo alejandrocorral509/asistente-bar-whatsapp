@@ -1,0 +1,4 @@
+__pycache__/
+.venv/
+# Claves secretas: nunca se suben a GitHub
+.env
