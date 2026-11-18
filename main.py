@@ -1,8 +1,10 @@
 # Asistente de WhatsApp para un bar: el servidor
 import json
 import anthropic # Importamos librería de anthropic
+import os 
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from fastapi import FastAPI
 from dotenv import load_dotenv # Importamos función para leer el .env
 
 load_dotenv() # lee el archivo .env y carga la clave 
@@ -10,6 +12,10 @@ load_dotenv() # lee el archivo .env y carga la clave
 cliente = anthropic.Anthropic() # Creamos el cliente
 
 MODELO = "claude-haiku-5-5" # Constante con el modelo elegido de Anthropic
+WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
+
 
 # Cargo los datos del bar una sola vez, al arrancar
 with open("datos/bar.json", encoding="utf-8") as archivo:
@@ -54,3 +60,14 @@ def preguntar(pregunta: Pregunta):
         if bloque.type == "text":
             texto += bloque.text
     return {"respuesta": texto}
+
+@app.get("/webhook")
+def verificar_webhook(request: Request):
+    modo = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    reto = request.query_params.get("hub.challenge")
+
+    if modo == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
+        return PlainTextResponse(reto)
+
+    raise HTTPException(status_code=403)
