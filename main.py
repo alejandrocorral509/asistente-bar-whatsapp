@@ -3,7 +3,8 @@ import json
 import anthropic # Importamos librería de anthropic
 import os
 import requests # Para mandar las respuestas a WhatsApp
-from datetime import date # Para saber la fecha de hoy
+import gspread # Para escribir en Google Sheets
+from datetime import date, datetime # Para saber la fecha de hoy y la hora de cada reserva
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
@@ -54,22 +55,30 @@ HERRAMIENTAS = [
     }
 ]
 
-# Guarda la reserva en reservas.json y le devuelve a Claude cómo ha ido
+# Me conecto a la hoja de Google una sola vez, al arrancar, con la llave de la cuenta de servicio
+cuenta_google = gspread.service_account(filename=os.getenv("GOOGLE_CREDENCIALES"))
+HOJA_RESERVAS = cuenta_google.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
+
+# Guarda la reserva como una fila nueva en Google Sheets y le devuelve a Claude cómo ha ido
 def guardar_reserva(numero: str, datos: dict) -> str:
     if datos["personas"] > 8:
         return "No guardada: son más de 8 personas, tienen que llamar al bar."
 
+    # El orden tiene que ser el de las columnas: Nombre, Día, Hora, Personas, Teléfono, Guardada el
+    fila = [
+        datos["nombre"],
+        datos["dia"],
+        datos["hora"],
+        datos["personas"],
+        numero,
+        datetime.now().strftime("%Y-%m-%d %H:%M"),
+    ]
+
     try:
-        with open("reservas.json", encoding="utf-8") as archivo:
-            reservas = json.load(archivo)
-    except FileNotFoundError: # La primera vez todavía no existe el archivo
-        reservas = []
-
-    datos["telefono"] = numero
-    reservas.append(datos)
-
-    with open("reservas.json", "w", encoding="utf-8") as archivo:
-        json.dump(reservas, archivo, ensure_ascii=False, indent=2)
+        HOJA_RESERVAS.append_row(fila)
+    except Exception as error: # Si Google falla, que Claude no diga que está reservado
+        print("Error al guardar en Google Sheets:", error)
+        return "No guardada: ha habido un problema técnico. Pide al cliente que llame al bar."
 
     print("Reserva guardada:", datos["nombre"], datos["dia"], datos["hora"], datos["personas"], "personas")
     return "Reserva guardada correctamente."
