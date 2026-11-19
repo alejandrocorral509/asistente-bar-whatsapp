@@ -3,3 +3,6 @@ __pycache__/
 # Claves secretas: nunca se suben a GitHub
 .env
 .vscode/
+
+# Reservas reales con teléfonos de clientes: no se suben
+reservas.json
