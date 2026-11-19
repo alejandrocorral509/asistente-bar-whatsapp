@@ -31,6 +31,9 @@ Escribes en WhatsApp: para la negrita usa un solo asterisco (*así*), nunca dos.
 Datos del bar:
 {json.dumps(BAR, ensure_ascii=False, indent=2)}"""
 
+# Conversación de cada cliente: número de teléfono -> lista de mensajes
+CONVERSACIONES = {}
+
 app = FastAPI() # Crear tu aplicación web
 
 class Pregunta(BaseModel):
@@ -48,19 +51,29 @@ def horario():
 def carta():
     return BAR["carta"]
 
-# Le paso el mensaje del cliente a Claude y me devuelve la respuesta
-def preguntar_a_claude(mensaje: str) -> str:
+# Le paso el mensaje del cliente a Claude (con toda su conversación) y me devuelve la respuesta
+def preguntar_a_claude(numero: str, mensaje: str) -> str:
+    # Si es la primera vez que escribe este número, le creo su conversación vacía
+    if numero not in CONVERSACIONES:
+        CONVERSACIONES[numero] = []
+
+    historial = CONVERSACIONES[numero]
+    historial.append({"role": "user", "content": mensaje})
+
     respuesta = cliente.messages.create(
         model=MODELO,
         max_tokens=16000,
         system=INSTRUCCIONES,
-        messages=[{"role": "user", "content": mensaje}],
+        messages=historial, # Toda la conversación, no solo el último mensaje
     )
 
     texto = ""
     for bloque in respuesta.content:
         if bloque.type == "text":
             texto += bloque.text
+
+    # Guardo también la respuesta, para que Claude la recuerde en el siguiente mensaje
+    historial.append({"role": "assistant", "content": texto})
     return texto
 
 # Mando un mensaje de WhatsApp a un número, a través de la API de Meta
@@ -78,7 +91,7 @@ def enviar_whatsapp(numero: str, texto: str):
 
 @app.post("/preguntar")
 def preguntar(pregunta: Pregunta):
-    return {"respuesta": preguntar_a_claude(pregunta.mensaje)}
+    return {"respuesta": preguntar_a_claude("prueba", pregunta.mensaje)} # Sin WhatsApp no hay número: uso "prueba"
 
 @app.get("/webhook")
 def verificar_webhook(request: Request):
@@ -112,6 +125,6 @@ async def recibir_mensaje(request: Request):
     texto = mensaje["text"]["body"]
     print(f"Mensaje recibido: {texto}")
 
-    respuesta = preguntar_a_claude(texto)
+    respuesta = preguntar_a_claude(numero, texto)
     enviar_whatsapp(numero, respuesta)
     return {"ok": True}
