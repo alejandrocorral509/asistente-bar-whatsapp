@@ -4,6 +4,13 @@ Servidor en Python que contesta por **WhatsApp** a los clientes de un bar. Respo
 
 El bar es inventado: **Tabanco La Bota**, en Jerez. Sus datos están en [`datos/bar.json`](datos/bar.json) y no corresponden a ningún local real.
 
+## Pruébalo
+**👉 [asistente-bar-whatsapp.onrender.com/chat](https://asistente-bar-whatsapp.onrender.com/chat)**
+
+Es un chat web que usa el mismo asistente que WhatsApp, con el mismo código, los mismos datos y las mismas reservas, para que cualquiera pueda probarlo sin estar en la lista de números verificados de Meta. Pregúntale por el horario o la carta, o haz una reserva.
+
+> Está en el plan gratuito de Render: si nadie lo ha usado en 15 minutos, el primer mensaje puede tardar alrededor de un minuto en responder.
+
 ## Qué hace
 Un cliente escribe por WhatsApp:
 > Hola, ¿tenéis mesa para 4 el sábado a las 21:00? Soy Marta
@@ -97,15 +104,18 @@ Para WhatsApp, en Meta for Developers configuras el webhook con una URL pública
 - **Reservas en un archivo local.** La primera versión del *tool use* guardaba las reservas en `reservas.json`, dentro del servidor. Como ese archivo llevaba teléfonos de clientes, lo tuve que meter en el `.gitignore`. Después lo cambié por **Google Sheets**, y al hacerlo añadí el control de errores: si Google falla, Claude no confirma la reserva.
 - **Claude no sabe qué día es.** Si un cliente decía "el sábado", no tenía forma de saber qué fecha era. Lo resolví añadiendo a las instrucciones, en cada mensaje, el día de la semana y la fecha de hoy.
 - **Meta no solo manda mensajes.** Al webhook también llegan avisos de mensaje entregado o leído, que no traen texto. Ahora compruebo que venga `messages` antes de hacer nada.
+- **Nadie podía probarlo.** El número de prueba de Meta solo escribe a 5 números verificados. Para enseñarlo, hice un chat web que llama a la misma función que WhatsApp y lo desplegué en Render.
+- **Reservas web sin forma de contacto.** En el chat web no hay número de teléfono, así que las reservas se guardaban con un identificador interno. Ahora Claude le pide el teléfono al cliente, y el código no guarda la reserva sin él.
+- **Una demo pública gasta mi saldo.** Puse límites de mensajes por visitante y por día para que nadie pueda gastarse el saldo de la API.
 
 ## Limitaciones actuales
-- **La memoria se pierde al reiniciar.** Las conversaciones están en un diccionario en memoria: si el servidor se reinicia, el asistente olvida todo lo hablado.
-- **Número de prueba de Meta.** Solo puede mandar mensajes a números verificados en la app de Meta, así que de momento no lo puede usar cualquiera.
-- **El token caduca cada día.** El token temporal del número de prueba hay que renovarlo a diario en Meta for Developers.
+- **La memoria se pierde al reiniciar.** Las conversaciones y los contadores de los límites están en memoria: si el servidor se reinicia o Render lo duerme, el asistente olvida todo lo hablado.
+- **Número de prueba de Meta.** Por WhatsApp solo pueden escribirle los números verificados en la app de Meta. Para un bar real haría falta un número propio.
 
 ## Siguientes mejoras
-- Un **chat web** para probar el asistente sin necesidad de WhatsApp.
-- **Desplegarlo** en un servidor para que funcione sin tener mi ordenador encendido.
+- **Guardar las conversaciones en una base de datos**, para que no se pierdan al reiniciar.
+- **Confirmar por WhatsApp las reservas hechas en la web**, con un código que el cliente manda desde su teléfono. Ya lo tengo programado y probado, pero todavía no lo he incorporado.
+- **Número real de WhatsApp** si lo usa un bar de verdad (ver [`docs/despliegue.md`](docs/despliegue.md)).
 
 ---
 Hecho por Alejandro Corral · [Más proyectos en GitHub](https://github.com/alejandrocorral509)
