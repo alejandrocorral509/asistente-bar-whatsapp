@@ -6,7 +6,7 @@ import requests # Para mandar las respuestas a WhatsApp
 import gspread # Para escribir en Google Sheets
 from datetime import date, datetime # Para saber la fecha de hoy y la hora de cada reserva
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv # Importamos función para leer el .env
 
@@ -19,7 +19,6 @@ DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", 
 WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN")
-
 
 # Cargo los datos del bar una sola vez, al arrancar
 with open("datos/bar.json", encoding="utf-8") as archivo:
@@ -49,6 +48,7 @@ HERRAMIENTAS = [
                 "dia": {"type": "string", "description": "Fecha de la reserva en formato AAAA-MM-DD"},
                 "hora": {"type": "string", "description": "Hora de la reserva en formato HH:MM"},
                 "personas": {"type": "integer", "description": "Número de personas"},
+                "telefono": {"type": "string", "description": "Teléfono de contacto que ha dado el cliente. Solo hace falta si escribe desde la web."},
             },
             "required": ["nombre", "dia", "hora", "personas"],
         },
@@ -59,10 +59,20 @@ HERRAMIENTAS = [
 cuenta_google = gspread.service_account(filename=os.getenv("GOOGLE_CREDENCIALES"))
 HOJA_RESERVAS = cuenta_google.open_by_key(os.getenv("GOOGLE_SHEET_ID")).sheet1
 
+# Los clientes de la web no tienen número de WhatsApp: el chat les pone "web-..." (o "prueba" sin chat)
+def es_de_la_web(numero: str) -> bool:
+    return numero.startswith("web-") or numero == "prueba"
+
 # Guarda la reserva como una fila nueva en Google Sheets y le devuelve a Claude cómo ha ido
 def guardar_reserva(numero: str, datos: dict) -> str:
     if datos["personas"] > 8:
         return "No guardada: son más de 8 personas, tienen que llamar al bar."
+
+    # Por WhatsApp ya tengo su número; desde la web solo tengo un id aleatorio, así que necesito el que me dé el cliente
+    if es_de_la_web(numero):
+        if not datos.get("telefono"):
+            return "No guardada: falta el teléfono. Pídeselo al cliente y vuelve a intentarlo."
+        numero = datos["telefono"]
 
     # El orden tiene que ser el de las columnas: Nombre, Día, Hora, Personas, Teléfono, Guardada el
     fila = [
@@ -87,10 +97,16 @@ app = FastAPI() # Crear tu aplicación web
 
 class Pregunta(BaseModel):
     mensaje: str
+    sesion: str | None = None # Id aleatorio que manda el chat web, para que cada visitante tenga su conversación
 
 @app.get("/") # Cuando alguien pida la dirección "/", ejecuta la función
 def inicio():
-    return {"mensaje": f"El asistente de {BAR['nombre']} esta funcionando"} # Devuelves un diccionario y FastApi lo convierte en JSON
+    return {"mensaje": f"El asistente de {BAR['nombre']} esta funcionando", "bar": BAR["nombre"]} # Devuelves un diccionario y FastApi lo convierte en JSON
+
+# Página del chat web, para probar el asistente sin WhatsApp
+@app.get("/chat")
+def chat():
+    return FileResponse("web/index.html")
 
 @app.get("/horario")
 def horario():
@@ -111,14 +127,18 @@ def preguntar_a_claude(numero: str, mensaje: str) -> str:
 
     # Claude no sabe qué día es: se lo digo yo, para que entienda "mañana" o "el sábado"
     hoy = date.today()
-    fecha_de_hoy = f"\n\nHoy es {DIAS_SEMANA[hoy.weekday()]} {hoy.isoformat()}."
+    contexto = f"\n\nHoy es {DIAS_SEMANA[hoy.weekday()]} {hoy.isoformat()}."
+
+    # Si escribe desde la web no tengo su número: le digo a Claude que lo pida antes de reservar
+    if es_de_la_web(numero):
+        contexto += "\nEste cliente escribe desde la web: antes de guardar una reserva, pídele también su teléfono."
 
     # Bucle de herramientas: mientras Claude pida usar una, la uso y le devuelvo el resultado
     while True:
         respuesta = cliente.messages.create(
             model=MODELO,
             max_tokens=16000,
-            system=INSTRUCCIONES + fecha_de_hoy,
+            system=INSTRUCCIONES + contexto, # Datos del bar + fecha de hoy (+ aviso de la web)
             tools=HERRAMIENTAS,
             messages=historial, # Toda la conversación, no solo el último mensaje
         )
@@ -157,7 +177,12 @@ def enviar_whatsapp(numero: str, texto: str):
 
 @app.post("/preguntar")
 def preguntar(pregunta: Pregunta):
-    return {"respuesta": preguntar_a_claude("prueba", pregunta.mensaje)} # Sin WhatsApp no hay número: uso "prueba"
+    # Sin WhatsApp no hay número: si viene del chat web uso su sesión, y si no, "prueba"
+    if pregunta.sesion:
+        numero = "web-" + pregunta.sesion
+    else:
+        numero = "prueba"
+    return {"respuesta": preguntar_a_claude(numero, pregunta.mensaje)}
 
 @app.get("/webhook")
 def verificar_webhook(request: Request):
