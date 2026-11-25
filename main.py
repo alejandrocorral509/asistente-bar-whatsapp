@@ -93,6 +93,30 @@ def guardar_reserva(numero: str, datos: dict) -> str:
     print("Reserva guardada:", datos["nombre"], datos["dia"], datos["hora"], datos["personas"], "personas")
     return "Reserva guardada correctamente."
 
+# Límites para que nadie se gaste mi saldo de Anthropic con la demo pública. Se reinician cada día.
+LIMITE_POR_VISITANTE = 20 # Mensajes al día por visitante (IP en la web, número en WhatsApp)
+LIMITE_DIARIO = 200 # Mensajes al día entre todos
+LARGO_MAXIMO = 500 # Caracteres por mensaje
+USO = {"dia": date.today(), "total": 0, "por_visitante": {}}
+
+# Cuenta un mensaje más. Si se ha pasado algún límite, devuelve el aviso para el cliente; si no, None
+def comprobar_limites(visitante: str) -> str | None:
+    if USO["dia"] != date.today(): # Día nuevo: vuelvo a contar desde cero
+        USO["dia"] = date.today()
+        USO["total"] = 0
+        USO["por_visitante"] = {}
+
+    if USO["total"] >= LIMITE_DIARIO:
+        return "La demo ha llegado a su límite de mensajes por hoy. Vuelve mañana 🙂"
+
+    mensajes_del_visitante = USO["por_visitante"].get(visitante, 0)
+    if mensajes_del_visitante >= LIMITE_POR_VISITANTE:
+        return "Has llegado al límite de mensajes de la demo por hoy. Vuelve mañana 🙂"
+
+    USO["total"] += 1
+    USO["por_visitante"][visitante] = mensajes_del_visitante + 1
+    return None
+
 app = FastAPI() # Crear tu aplicación web
 
 class Pregunta(BaseModel):
@@ -137,7 +161,7 @@ def preguntar_a_claude(numero: str, mensaje: str) -> str:
     while True:
         respuesta = cliente.messages.create(
             model=MODELO,
-            max_tokens=16000,
+            max_tokens=1024, # Las respuestas de WhatsApp son cortas: así una respuesta nunca sale cara
             system=INSTRUCCIONES + contexto, # Datos del bar + fecha de hoy (+ aviso de la web)
             tools=HERRAMIENTAS,
             messages=historial, # Toda la conversación, no solo el último mensaje
@@ -176,7 +200,17 @@ def enviar_whatsapp(numero: str, texto: str):
     print("WhatsApp ha contestado:", respuesta.status_code, respuesta.text)
 
 @app.post("/preguntar")
-def preguntar(pregunta: Pregunta):
+def preguntar(pregunta: Pregunta, request: Request):
+    if len(pregunta.mensaje) > LARGO_MAXIMO:
+        return {"respuesta": f"El mensaje es muy largo: escríbelo en menos de {LARGO_MAXIMO} caracteres."}
+
+    # Cuento por IP y no por sesión, porque la sesión la inventa el navegador y se puede cambiar.
+    # En Render la IP real del visitante llega en la cabecera X-Forwarded-For.
+    ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    aviso = comprobar_limites(ip)
+    if aviso:
+        return {"respuesta": aviso}
+
     # Sin WhatsApp no hay número: si viene del chat web uso su sesión, y si no, "prueba"
     if pregunta.sesion:
         numero = "web-" + pregunta.sesion
@@ -215,6 +249,11 @@ async def recibir_mensaje(request: Request):
 
     texto = mensaje["text"]["body"]
     print(f"Mensaje recibido: {texto}")
+
+    aviso = comprobar_limites(numero)
+    if aviso:
+        enviar_whatsapp(numero, aviso)
+        return {"ok": True}
 
     respuesta = preguntar_a_claude(numero, texto)
     enviar_whatsapp(numero, respuesta)

@@ -40,6 +40,8 @@ flowchart LR
 - **Más de 8 personas → que llamen al bar.** `guardar_reserva` no guarda la reserva y le dice a Claude que el cliente tiene que llamar. No lo dejo solo en el prompt: lo compruebo en Python.
 - **Si Google falla, nunca confirma la reserva.** Si `append_row` da error, la herramienta devuelve "No guardada: ha habido un problema técnico", así que Claude no puede decir que está reservado.
 - **Solo texto.** Si llega un audio, una foto o una ubicación, contesta "De momento solo entiendo mensajes de texto 🙂" sin llamar a Claude.
+- **Reservas web con teléfono.** Desde el chat web no tengo el número del cliente, así que Claude se lo pide y `guardar_reserva` no guarda la reserva sin él.
+- **Límites de uso para la demo pública.** Cada visitante puede mandar 20 mensajes al día (contados por IP en la web y por número en WhatsApp), hay un máximo de 200 al día entre todos y cada mensaje puede tener hasta 500 caracteres. Así nadie puede gastarse el saldo de la API.
 - Además, en las instrucciones: solo responde con datos del bar, si algo no está dice que no lo sabe, las quejas las pasa a una persona y los alérgenos los tiene que confirmar el camarero.
 
 ## Rutas
