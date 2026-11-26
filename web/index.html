@@ -1,193 +1,250 @@
 <!doctype html>
 <html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chat del bar</title>
-<style>
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    font-family: system-ui, sans-serif;
-    background: #efeae2;
-    color: #1f2328;
-  }
-
-  /* La página ocupa toda la pantalla: cabecera arriba, mensajes en medio y caja de texto abajo */
-  .chat {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
-    max-width: 720px;
-    margin: 0 auto;
-    background: #f7f5f2;
-    border-left: 1px solid #ddd6cc;
-    border-right: 1px solid #ddd6cc;
-  }
-
-  header {
-    padding: 12px 16px;
-    background: #2f5d50;
-    color: #fff;
-  }
-  header h1 { margin: 0; font-size: 18px; }
-  header p { margin: 2px 0 0; font-size: 13px; opacity: 0.85; }
-
-  #mensajes {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .burbuja {
-    max-width: 80%;
-    padding: 8px 12px;
-    border-radius: 8px;
-    line-height: 1.4;
-    white-space: pre-wrap; /* Respeta los saltos de línea de la respuesta */
-    overflow-wrap: anywhere;
-  }
-  .cliente { align-self: flex-end; background: #d9fdd3; }
-  .bar { align-self: flex-start; background: #fff; border: 1px solid #e5e0d8; }
-  .error { align-self: center; background: #fde2e1; color: #8a1c1c; font-size: 14px; }
-  .escribiendo { color: #6b7280; font-style: italic; }
-  form {
-    display: flex;
-    gap: 8px;
-    padding: 12px;
-    border-top: 1px solid #ddd6cc;
-    background: #fff;
-  }
-  input {
-    flex: 1;
-    padding: 10px 12px;
-    font-size: 16px; /* 16px para que el móvil no haga zoom al escribir */
-    border: 1px solid #c9c2b8;
-    border-radius: 6px;
-  }
-  button {
-    padding: 10px 16px;
-    font-size: 16px;
-    border: none;
-    border-radius: 6px;
-    background: #2f5d50;
-    color: #fff;
-    cursor: pointer;
-  }
-  button:disabled { opacity: 0.5; cursor: default; }
-</style>
-</head>
-<body>
-<div class="chat">
-  <header>
-    <h1 id="nombre-bar">Asistente del bar</h1>
-    <p>Pregunta por el horario, la carta o haz una reserva</p>
-  </header>
-
-  <div id="mensajes"></div>
-
-  <form id="formulario">
-    <input id="caja" type="text" placeholder="Escribe un mensaje…" autocomplete="off" required>
-    <button id="enviar" type="submit">Enviar</button>
-  </form>
-</div>
-
-<script>
-  const mensajes = document.getElementById("mensajes");
-  const formulario = document.getElementById("formulario");
-  const caja = document.getElementById("caja");
-  const botonEnviar = document.getElementById("enviar");
-
-  // Cada visitante tiene su propio id, para que el asistente recuerde SU conversación.
-  // Se guarda en sessionStorage: dura mientras la pestaña esté abierta.
-  function obtenerSesion() {
-    let sesion = null;
-    try {
-      sesion = sessionStorage.getItem("sesion");
-      if (!sesion) {
-        sesion = Math.random().toString(36).slice(2, 12);
-        sessionStorage.setItem("sesion", sesion);
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat del bar</title>
+    <style>
+      * {
+        box-sizing: border-box;
       }
-    } catch (error) {
-      // Si el navegador no deja usar sessionStorage, uso un id solo para esta carga de la página
-      sesion = sesion || Math.random().toString(36).slice(2, 12);
-    }
-    return sesion;
-  }
-  const SESION = obtenerSesion();
 
-  // Pasa el *texto* de WhatsApp a negrita. Primero escapo el HTML para que nadie pueda meter código.
-  function formatear(texto) {
-    const seguro = texto
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    return seguro.replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
-  }
-
-  // Añade una burbuja al chat y baja hasta el final
-  function añadirBurbuja(texto, tipo) {
-    const burbuja = document.createElement("div");
-    burbuja.className = "burbuja " + tipo;
-    burbuja.innerHTML = formatear(texto);
-    mensajes.appendChild(burbuja);
-    mensajes.scrollTop = mensajes.scrollHeight;
-    return burbuja;
-  }
-
-  // El nombre del bar lo da el servidor en "/"
-  async function cargarNombreBar() {
-    try {
-      const respuesta = await fetch("/");
-      const datos = await respuesta.json();
-      if (datos.bar) {
-        document.getElementById("nombre-bar").textContent = datos.bar;
-        document.title = "Chat de " + datos.bar;
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #efeae2;
+        color: #1f2328;
       }
-    } catch (error) {
-      // Si falla, se queda el título por defecto
-    }
-  }
 
-  formulario.addEventListener("submit", async (evento) => {
-    evento.preventDefault(); // Que el formulario no recargue la página
+      /* La página ocupa toda la pantalla: cabecera arriba, mensajes en medio y caja de texto abajo */
+      .chat {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        height: 100dvh;
+        max-width: 720px;
+        margin: 0 auto;
+        background: #f7f5f2;
+        border-left: 1px solid #ddd6cc;
+        border-right: 1px solid #ddd6cc;
+      }
 
-    const texto = caja.value.trim();
-    if (!texto) return;
+      header {
+        padding: 12px 16px;
+        background: #2f5d50;
+        color: #fff;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      header p {
+        margin: 2px 0 0;
+        font-size: 13px;
+        opacity: 0.85;
+      }
 
-    añadirBurbuja(texto, "cliente");
-    caja.value = "";
-    botonEnviar.disabled = true;
+      #mensajes {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
 
-    const escribiendo = añadirBurbuja("escribiendo…", "bar escribiendo");
+      .burbuja {
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        line-height: 1.4;
+        white-space: pre-wrap; /* Respeta los saltos de línea de la respuesta */
+        overflow-wrap: anywhere;
+      }
+      .cliente {
+        align-self: flex-end;
+        background: #d9fdd3;
+      }
+      .bar {
+        align-self: flex-start;
+        background: #fff;
+        border: 1px solid #e5e0d8;
+      }
+      .error {
+        align-self: center;
+        background: #fde2e1;
+        color: #8a1c1c;
+        font-size: 14px;
+      }
+      .escribiendo {
+        color: #6b7280;
+        font-style: italic;
+      }
+      form {
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+        border-top: 1px solid #ddd6cc;
+        background: #fff;
+      }
+      input {
+        flex: 1;
+        padding: 10px 12px;
+        font-size: 16px; /* 16px para que el móvil no haga zoom al escribir */
+        border: 1px solid #c9c2b8;
+        border-radius: 6px;
+      }
+      button {
+        padding: 10px 16px;
+        font-size: 16px;
+        border: none;
+        border-radius: 6px;
+        background: #2f5d50;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat">
+      <header>
+        <h1 id="nombre-bar">Asistente del bar</h1>
+        <p>Pregunta por el horario, la carta o haz una reserva</p>
+      </header>
 
-    try {
-      const respuesta = await fetch("/preguntar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mensaje: texto, sesion: SESION }),
+      <div id="mensajes"></div>
+
+      <form id="formulario">
+        <input
+          id="caja"
+          type="text"
+          placeholder="Escribe un mensaje…"
+          autocomplete="off"
+          required
+        />
+        <button id="enviar" type="submit">Enviar</button>
+      </form>
+    </div>
+
+    <script>
+      const mensajes = document.getElementById("mensajes");
+      const formulario = document.getElementById("formulario");
+      const caja = document.getElementById("caja");
+      const botonEnviar = document.getElementById("enviar");
+
+      // Cada visitante tiene su propio id, para que el asistente recuerde SU conversación.
+      // Se guarda en sessionStorage: dura mientras la pestaña esté abierta.
+      function obtenerSesion() {
+        let sesion = null;
+        try {
+          sesion = sessionStorage.getItem("sesion");
+          if (!sesion) {
+            sesion = Math.random().toString(36).slice(2, 12);
+            sessionStorage.setItem("sesion", sesion);
+          }
+        } catch (error) {
+          // Si el navegador no deja usar sessionStorage, uso un id solo para esta carga de la página
+          sesion = sesion || Math.random().toString(36).slice(2, 12);
+        }
+        return sesion;
+      }
+      const SESION = obtenerSesion();
+
+      // Pasa el *texto* de WhatsApp a negrita. Primero escapo el HTML para que nadie pueda meter código.
+      function formatear(texto) {
+        const seguro = texto
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        return seguro.replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
+      }
+
+      // Añade una burbuja al chat y baja hasta el final
+      function añadirBurbuja(texto, tipo) {
+        const burbuja = document.createElement("div");
+        burbuja.className = "burbuja " + tipo;
+        burbuja.innerHTML = formatear(texto);
+        mensajes.appendChild(burbuja);
+        mensajes.scrollTop = mensajes.scrollHeight;
+        return burbuja;
+      }
+
+      // El nombre del bar lo da el servidor en "/"
+      async function cargarNombreBar() {
+        try {
+          const respuesta = await fetch("/");
+          const datos = await respuesta.json();
+          if (datos.bar) {
+            document.getElementById("nombre-bar").textContent = datos.bar;
+            document.title = "Chat de " + datos.bar;
+          }
+        } catch (error) {
+          // Si falla, se queda el título por defecto
+        }
+      }
+
+      formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault(); // Que el formulario no recargue la página
+
+        const texto = caja.value.trim();
+        if (!texto) return;
+
+        añadirBurbuja(texto, "cliente");
+        caja.value = "";
+        botonEnviar.disabled = true;
+
+        const escribiendo = añadirBurbuja("escribiendo…", "bar escribiendo");
+
+        try {
+          const respuesta = await fetch("/preguntar-stream", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mensaje: texto, sesion: SESION }),
+          });
+          if (!respuesta.ok)
+            throw new Error("El servidor ha contestado " + respuesta.status);
+
+          // El lector nos va dando los trozos según llegan; el decodificador los pasa de bytes a texto
+          const lector = respuesta.body.getReader();
+          const decodificador = new TextDecoder();
+          let textoCompleto = "";
+          let burbuja = null;
+
+          while (true) {
+            const { done, value } = await lector.read(); // Espera al siguiente trozo
+            if (done) break; // Ya no llegan más: hemos terminado
+
+            if (!burbuja) {
+              // Primer trozo: quito "escribiendo…" y creo la burbuja
+              escribiendo.remove();
+              burbuja = añadirBurbuja("", "bar");
+            }
+            textoCompleto += decodificador.decode(value, { stream: true });
+            burbuja.innerHTML = formatear(textoCompleto); // Repinto la burbuja con todo lo que llevamos
+            mensajes.scrollTop = mensajes.scrollHeight; // Bajo para que se vea lo nuevo
+          }
+        } catch (error) {
+          escribiendo.remove();
+          añadirBurbuja(
+            "No he podido contestar ahora mismo. Inténtalo de nuevo en un momento.",
+            "error",
+          );
+          console.error(error);
+        }
+
+        botonEnviar.disabled = false;
+        caja.focus();
       });
-      if (!respuesta.ok) throw new Error("El servidor ha contestado " + respuesta.status);
-      const datos = await respuesta.json();
-      escribiendo.remove();
-      añadirBurbuja(datos.respuesta, "bar");
-    } catch (error) {
-      escribiendo.remove();
-      añadirBurbuja("No he podido contestar ahora mismo. Inténtalo de nuevo en un momento.", "error");
-      console.error(error);
-    }
 
-    botonEnviar.disabled = false;
-    caja.focus();
-  });
-
-  cargarNombreBar();
-  añadirBurbuja("¡Hola! 👋 Soy el asistente del bar. ¿En qué te puedo ayudar?", "bar");
-</script>
-</body>
+      cargarNombreBar();
+      añadirBurbuja(
+        "¡Hola! 👋 Soy el asistente del bar. ¿En qué te puedo ayudar?",
+        "bar",
+      );
+    </script>
+  </body>
 </html>

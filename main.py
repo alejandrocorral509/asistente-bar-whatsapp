@@ -6,11 +6,11 @@ import requests # Para mandar las respuestas a WhatsApp
 import gspread # Para escribir en Google Sheets
 from datetime import date, datetime # Para saber la fecha de hoy y la hora de cada reserva
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import PlainTextResponse, FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv # Importamos función para leer el .env
+from fastapi.responses import PlainTextResponse, FileResponse, StreamingResponse
 
-load_dotenv() # lee el archivo .env y carga la clave 
+load_dotenv() # lee el archivo .env y carga la clave
 
 cliente = anthropic.Anthropic() # Creamos el cliente
 
@@ -140,8 +140,8 @@ def horario():
 def carta():
     return BAR["carta"]
 
-# Le paso el mensaje del cliente a Claude (con toda su conversación) y me devuelve la respuesta
-def preguntar_a_claude(numero: str, mensaje: str) -> str:
+# Prepara un turno: añade el mensaje a la conversación del cliente y monta las instrucciones para Claude
+def empezar_turno(numero: str, mensaje: str):
     # Si es la primera vez que escribe este número, le creo su conversación vacía
     if numero not in CONVERSACIONES:
         CONVERSACIONES[numero] = []
@@ -157,34 +157,69 @@ def preguntar_a_claude(numero: str, mensaje: str) -> str:
     if es_de_la_web(numero):
         contexto += "\nEste cliente escribe desde la web: antes de guardar una reserva, pídele también su teléfono."
 
-    # Bucle de herramientas: mientras Claude pida usar una, la uso y le devuelvo el resultado
+    return historial, INSTRUCCIONES + contexto # Datos del bar + fecha de hoy (+ aviso de la web)
+
+# Guarda la respuesta de Claude y, si ha pedido herramientas, las usa.
+# Devuelve True si Claude tiene que seguir (le he dado resultados) y False si ya ha terminado.
+def usar_herramientas(numero: str, historial: list, respuesta) -> bool:
+    # Guardo la respuesta de Claude tal cual (puede llevar texto y peticiones de herramienta)
+    historial.append({"role": "assistant", "content": [bloque.model_dump() for bloque in respuesta.content]})
+
+    if respuesta.stop_reason != "tool_use":
+        return False # Claude ya ha terminado: no pide ninguna herramienta
+
+    resultados = []
+    for bloque in respuesta.content:
+        if bloque.type == "tool_use" and bloque.name == "guardar_reserva":
+            resultado = guardar_reserva(numero, bloque.input)
+            resultados.append({"type": "tool_result", "tool_use_id": bloque.id, "content": resultado})
+    historial.append({"role": "user", "content": resultados})
+    return True
+
+# Le paso el mensaje del cliente a Claude (con toda su conversación) y me devuelve la respuesta entera
+def preguntar_a_claude(numero: str, mensaje: str) -> str:
+    historial, instrucciones = empezar_turno(numero, mensaje)
+
+    # Bucle de herramientas: mientras Claude pida usar una, la uso y le vuelvo a preguntar
     while True:
         respuesta = cliente.messages.create(
             model=MODELO,
             max_tokens=1024, # Las respuestas de WhatsApp son cortas: así una respuesta nunca sale cara
-            system=INSTRUCCIONES + contexto, # Datos del bar + fecha de hoy (+ aviso de la web)
+            system=instrucciones,
             tools=HERRAMIENTAS,
             messages=historial, # Toda la conversación, no solo el último mensaje
         )
-
-        # Guardo la respuesta de Claude tal cual (puede llevar texto y peticiones de herramienta)
-        historial.append({"role": "assistant", "content": [bloque.model_dump() for bloque in respuesta.content]})
-
-        if respuesta.stop_reason != "tool_use":
-            break # Claude ya ha terminado: no pide ninguna herramienta
-
-        resultados = []
-        for bloque in respuesta.content:
-            if bloque.type == "tool_use" and bloque.name == "guardar_reserva":
-                resultado = guardar_reserva(numero, bloque.input)
-                resultados.append({"type": "tool_result", "tool_use_id": bloque.id, "content": resultado})
-        historial.append({"role": "user", "content": resultados})
+        if not usar_herramientas(numero, historial, respuesta):
+            break
 
     texto = ""
     for bloque in respuesta.content:
         if bloque.type == "text":
             texto += bloque.text
     return texto
+
+# Igual que preguntar_a_claude, pero va entregando (yield) la respuesta a trozos según llega
+def preguntar_a_claude_en_directo(numero: str, mensaje: str):
+    historial, instrucciones = empezar_turno(numero, mensaje)
+    hubo_texto = False
+
+    while True:
+        with cliente.messages.stream(
+            model=MODELO,
+            max_tokens=1024,
+            system=instrucciones,
+            tools=HERRAMIENTAS,
+            messages=historial,
+        ) as stream:
+            for trozo in stream.text_stream:
+                hubo_texto = True
+                yield trozo  # Cada trozo sale hacia el navegador en cuanto llega
+            respuesta = stream.get_final_message()  # La respuesta entera, para ver si pidió herramientas
+
+        if not usar_herramientas(numero, historial, respuesta):
+            break
+        if hubo_texto:
+            yield "\n\n"  # Si usó una herramienta, separo lo que dijo antes de lo que dirá después
 
 # Mando un mensaje de WhatsApp a un número, a través de la API de Meta
 def enviar_whatsapp(numero: str, texto: str):
@@ -217,6 +252,19 @@ def preguntar(pregunta: Pregunta, request: Request):
     else:
         numero = "prueba"
     return {"respuesta": preguntar_a_claude(numero, pregunta.mensaje)}
+
+@app.post("/preguntar-stream")
+def preguntar_stream(pregunta: Pregunta, request: Request):
+    if len(pregunta.mensaje) > LARGO_MAXIMO:
+        return PlainTextResponse(f"El mensaje es muy largo: escríbelo en menos de {LARGO_MAXIMO} caracteres.")
+
+    ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0].strip()
+    aviso = comprobar_limites(ip)
+    if aviso:
+        return PlainTextResponse(aviso)
+
+    numero = "web-" + pregunta.sesion if pregunta.sesion else "prueba"
+    return StreamingResponse(preguntar_a_claude_en_directo(numero, pregunta.mensaje), media_type="text/plain; charset=utf-8")
 
 @app.get("/webhook")
 def verificar_webhook(request: Request):
